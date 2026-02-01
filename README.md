@@ -1,0 +1,1 @@
+# Disable-thermal-limit-all-android-system-
