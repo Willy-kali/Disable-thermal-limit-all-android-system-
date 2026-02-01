@@ -1,0 +1,86 @@
+#!/system/bin/sh
+# Thermal Protection Restore Script
+# Re-enables thermal management and throttling
+# Use this to restore safety features
+
+echo "=========================================="
+echo "THERMAL PROTECTION RESTORE"
+echo "Re-enabling thermal safety features"
+echo "=========================================="
+echo ""
+
+# Function to safely execute commands
+safe_exec() {
+    local cmd="$1"
+    local desc="$2"
+    
+    if eval "$cmd" 2>/dev/null; then
+        echo "✓ $desc"
+        return 0
+    else
+        echo "✗ $desc (failed)"
+        return 1
+    fi
+}
+
+echo "Step 1: Restarting Thermal Services"
+echo "=========================================="
+safe_exec "setprop debug.svc.thermal_manager running" "Thermal manager → RUNNING"
+safe_exec "setprop debug.svc.thermald running" "Thermald daemon → RUNNING"
+safe_exec "setprop debug.svc.thermalloadalgod running" "Thermal load algo → RUNNING"
+safe_exec "setprop vendor.thermal.manager running" "Vendor thermal → RUNNING"
+safe_exec "setprop init.svc.thermal-engine running" "Thermal engine → RUNNING"
+
+echo ""
+echo "Step 2: Re-enabling Throttling"
+echo "=========================================="
+safe_exec "settings put global power.throttling.disable 0" "Power throttling → ENABLED"
+safe_exec "settings put global thermal.gpu_thermal_throttle.disable 0" "GPU throttle → ENABLED"
+safe_exec "settings put global thermal.cpu_thermal_throttle.disable 0" "CPU throttle → ENABLED"
+
+echo ""
+echo "Step 3: Restoring Thermal Manager"
+echo "=========================================="
+safe_exec "settings put global thermal.manager.enabled 1" "Thermal manager → ENABLED"
+safe_exec "settings put global thermal.throttle.disabled 0" "Thermal throttle → ENABLED"
+safe_exec "settings put global thermal_throttle 1" "Thermal throttle → ON"
+safe_exec "settings put global thermal.enabled 1" "Thermal system → ENABLED"
+
+echo ""
+echo "Step 4: Restoring Device Config"
+echo "=========================================="
+safe_exec "cmd device_config put hardware_properties_manager thermal_throttling_enabled true" "HW thermal throttle → TRUE"
+safe_exec "cmd device_config put hardware_properties_manager cpu_throttling_disabled false" "CPU throttle disabled → FALSE"
+safe_exec "cmd device_config put hardware_properties_manager gpu_throttling_disabled false" "GPU throttle disabled → FALSE"
+safe_exec "cmd device_config put hardware_properties_manager thermal_manager_enabled true" "Thermal manager → TRUE"
+
+echo ""
+echo "Step 5: Restoring System Properties"
+echo "=========================================="
+safe_exec "setprop persist.vendor.disable.thermal.control 0" "Vendor thermal control → ENABLED"
+safe_exec "setprop persist.sys.thermal.disable 0" "System thermal → ENABLED"
+safe_exec "setprop ro.thermal.control true" "Thermal control → TRUE"
+safe_exec "setprop vendor.thermal.config enable" "Thermal config → ENABLE"
+
+echo ""
+echo "Step 6: Additional Restoration"
+echo "=========================================="
+safe_exec "settings put global power_throttle_enabled 1" "Power throttle → ENABLED"
+safe_exec "settings put system thermal_limit_disabled 0" "Thermal limit → ENABLED"
+safe_exec "settings put secure thermal_control_enabled 1" "Secure thermal → ENABLED"
+
+echo ""
+echo "Step 7: Resetting Performance Mode"
+echo "=========================================="
+safe_exec "settings delete global enhanced_processing" "Enhanced processing → DEFAULT"
+safe_exec "cmd power set-mode 0" "Power mode → BALANCED"
+safe_exec "setprop sys.perf.profile 0" "Performance profile → DEFAULT"
+
+echo ""
+echo "=========================================="
+echo "✓ Thermal Protection Restored!"
+echo "=========================================="
+echo ""
+echo "Your device is now protected from"
+echo "overheating again. Restart recommended."
+echo "=========================================="

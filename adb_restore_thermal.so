@@ -1,0 +1,88 @@
+#!/bin/bash
+# ADB Thermal Protection Restore
+# Re-enables thermal safety via ADB
+
+echo "=========================================="
+echo "ADB THERMAL PROTECTION RESTORE"
+echo "=========================================="
+echo ""
+
+# Check if ADB is installed
+if ! command -v adb &> /dev/null; then
+    echo "ERROR: ADB not found!"
+    exit 1
+fi
+
+# Check if device is connected
+if ! adb devices | grep -q "device$"; then
+    echo "ERROR: No device connected!"
+    exit 1
+fi
+
+echo "✓ Device connected"
+echo ""
+echo "Restoring thermal protection..."
+echo ""
+
+# Function to execute ADB command
+adb_exec() {
+    local cmd="$1"
+    local desc="$2"
+    
+    if adb shell "$cmd" 2>/dev/null; then
+        echo "✓ $desc"
+    else
+        echo "✗ $desc"
+    fi
+}
+
+echo "[1/7] Restarting thermal services..."
+adb_exec "setprop debug.svc.thermal_manager running" "Thermal manager"
+adb_exec "setprop debug.svc.thermald running" "Thermald"
+adb_exec "setprop debug.svc.thermalloadalgod running" "Thermal algo"
+adb_exec "setprop vendor.thermal.manager running" "Vendor thermal"
+
+echo ""
+echo "[2/7] Re-enabling throttling..."
+adb_exec "settings put global power.throttling.disable 0" "Power throttle"
+adb_exec "settings put global thermal.gpu_thermal_throttle.disable 0" "GPU throttle"
+adb_exec "settings put global thermal.cpu_thermal_throttle.disable 0" "CPU throttle"
+
+echo ""
+echo "[3/7] Thermal manager..."
+adb_exec "settings put global thermal.manager.enabled 1" "Manager enabled"
+adb_exec "settings put global thermal.throttle.disabled 0" "Throttle enabled"
+adb_exec "settings put global thermal_throttle 1" "Throttle on"
+
+echo ""
+echo "[4/7] Device config..."
+adb_exec "cmd device_config put hardware_properties_manager thermal_throttling_enabled true" "HW throttle on"
+adb_exec "cmd device_config put hardware_properties_manager cpu_throttling_disabled false" "CPU throttle on"
+adb_exec "cmd device_config put hardware_properties_manager gpu_throttling_disabled false" "GPU throttle on"
+
+echo ""
+echo "[5/7] System properties..."
+adb_exec "setprop persist.vendor.disable.thermal.control 0" "Vendor control on"
+adb_exec "setprop persist.sys.thermal.disable 0" "System thermal on"
+adb_exec "setprop ro.thermal.control true" "Thermal control on"
+
+echo ""
+echo "[6/7] Additional restoration..."
+adb_exec "settings put global power_throttle_enabled 1" "Power throttle on"
+adb_exec "settings put system thermal_limit_disabled 0" "Limit enabled"
+adb_exec "settings put secure thermal_control_enabled 1" "Secure thermal on"
+
+echo ""
+echo "[7/7] Balanced performance..."
+adb_exec "settings delete global enhanced_processing" "Enhanced processing reset"
+adb_exec "cmd power set-mode 0" "Balanced mode"
+adb_exec "setprop sys.perf.profile 0" "Default profile"
+
+echo ""
+echo "=========================================="
+echo "✓ THERMAL PROTECTION RESTORED!"
+echo "=========================================="
+echo ""
+echo "Your device is now safe from overheating."
+echo "Restart recommended for full effect."
+echo "=========================================="

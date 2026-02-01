@@ -1,0 +1,180 @@
+#!/bin/bash
+# ADB Thermal Disabler Setup
+# Run this from your PC with device connected
+# Grants permissions and executes thermal disable
+
+echo "=========================================="
+echo "ADB THERMAL DISABLER SETUP"
+echo "=========================================="
+echo ""
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if ADB is installed
+if ! command -v adb &> /dev/null; then
+    echo -e "${RED}ERROR: ADB not found!${NC}"
+    echo "Install Android Platform Tools first"
+    echo ""
+    echo "Download from:"
+    echo "https://developer.android.com/studio/releases/platform-tools"
+    exit 1
+fi
+
+# Check if device is connected
+if ! adb devices | grep -q "device$"; then
+    echo -e "${RED}ERROR: No device connected!${NC}"
+    echo ""
+    echo "Steps to connect:"
+    echo "1. Enable Developer Options (tap Build Number 7x)"
+    echo "2. Enable USB Debugging"
+    echo "3. Connect USB cable"
+    echo "4. Accept 'Allow USB Debugging' prompt"
+    exit 1
+fi
+
+echo -e "${GREEN}✓ Device connected!${NC}"
+echo ""
+
+# Warning
+echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${RED}⚠️  EXTREME WARNING ⚠️${NC}"
+echo -e "${RED}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo ""
+echo "This will DISABLE thermal protection!"
+echo "Your device may:"
+echo "  • Overheat and get damaged"
+echo "  • Battery may swell or degrade faster"
+echo "  • CPU/GPU may throttle due to heat damage"
+echo "  • Warranty may be voided"
+echo ""
+echo -e "${YELLOW}Only proceed if you understand the risks!${NC}"
+echo ""
+read -p "Type 'I UNDERSTAND THE RISKS' to continue: " confirm
+
+if [ "$confirm" != "I UNDERSTAND THE RISKS" ]; then
+    echo ""
+    echo "Cancelled. Smart choice!"
+    exit 0
+fi
+
+echo ""
+echo -e "${YELLOW}Starting in 5 seconds...${NC}"
+sleep 5
+
+echo ""
+echo "=========================================="
+echo "Granting permissions..."
+echo "=========================================="
+adb shell pm grant com.android.shell android.permission.WRITE_SECURE_SETTINGS 2>/dev/null
+echo "✓ Permissions granted"
+
+echo ""
+echo "=========================================="
+echo "Executing thermal disable commands..."
+echo "=========================================="
+
+# Function to execute ADB command
+adb_exec() {
+    local cmd="$1"
+    local desc="$2"
+    
+    if adb shell "$cmd" 2>/dev/null; then
+        echo -e "${GREEN}✓${NC} $desc"
+    else
+        echo -e "${RED}✗${NC} $desc"
+    fi
+}
+
+echo ""
+echo "[1/8] Stopping thermal services..."
+adb_exec "setprop debug.svc.thermal_manager stopped" "Thermal manager"
+adb_exec "setprop debug.svc.thermald stopped" "Thermald daemon"
+adb_exec "setprop debug.svc.thermalloadalgod stopped" "Thermal algo"
+adb_exec "setprop vendor.thermal.manager stopped" "Vendor thermal"
+adb_exec "setprop init.svc.thermal-engine stopped" "Thermal engine"
+
+echo ""
+echo "[2/8] Disabling throttling..."
+adb_exec "settings put global power.throttling.disable 1" "Power throttle"
+adb_exec "settings put global thermal.gpu_thermal_throttle.disable 1" "GPU throttle"
+adb_exec "settings put global thermal.cpu_thermal_throttle.disable 1" "CPU throttle"
+
+echo ""
+echo "[3/8] Thermal manager..."
+adb_exec "settings put global thermal.manager.enabled 0" "Manager disabled"
+adb_exec "settings put global thermal.throttle.disabled 1" "Throttle disabled"
+adb_exec "settings put global thermal_throttle 0" "Throttle off"
+adb_exec "settings put global thermal.enabled 0" "Thermal system off"
+
+echo ""
+echo "[4/8] Device config..."
+adb_exec "cmd device_config put hardware_properties_manager thermal_throttling_enabled false" "HW throttle disabled"
+adb_exec "cmd device_config put hardware_properties_manager cpu_throttling_disabled true" "CPU throttle off"
+adb_exec "cmd device_config put hardware_properties_manager gpu_throttling_disabled true" "GPU throttle off"
+adb_exec "cmd device_config put hardware_properties_manager thermal_manager_enabled false" "Manager off"
+
+echo ""
+echo "[5/8] System properties..."
+adb_exec "setprop persist.vendor.disable.thermal.control 1" "Vendor control off"
+adb_exec "setprop persist.sys.thermal.disable 1" "System thermal off"
+adb_exec "setprop ro.thermal.control false" "Thermal control off"
+adb_exec "setprop vendor.thermal.config disable" "Config disabled"
+
+echo ""
+echo "[6/8] Additional overrides..."
+adb_exec "settings put global power_throttle_enabled 0" "Power throttle off"
+adb_exec "settings put system thermal_limit_disabled 1" "Limit disabled"
+adb_exec "settings put secure thermal_control_enabled 0" "Secure thermal off"
+
+echo ""
+echo "[7/8] Performance mode..."
+adb_exec "settings put global enhanced_processing 1" "Enhanced processing"
+adb_exec "settings put global peak_refresh_rate 120" "Peak refresh 120Hz"
+adb_exec "cmd power set-mode 1" "Performance mode"
+
+echo ""
+echo "[8/8] Max CPU/GPU..."
+adb_exec "setprop sys.perf.profile 2" "Max profile"
+adb_exec "setprop vendor.perf.mode 2" "Vendor max"
+adb_exec "cmd device_config put game_overlay gpu_mode_override 3" "GPU max"
+
+echo ""
+echo "=========================================="
+echo "VERIFICATION:"
+echo "=========================================="
+
+thermal_status=$(adb shell settings get global thermal.manager.enabled 2>/dev/null)
+throttle_status=$(adb shell settings get global thermal.throttle.disabled 2>/dev/null)
+
+echo "Thermal manager: $thermal_status (should be 0)"
+echo "Throttle disabled: $throttle_status (should be 1)"
+
+echo ""
+echo "=========================================="
+echo -e "${RED}⚠️  CRITICAL: READ THIS! ⚠️${NC}"
+echo "=========================================="
+echo ""
+echo -e "${YELLOW}THERMAL PROTECTION IS NOW DISABLED!${NC}"
+echo ""
+echo "INSTALL A TEMPERATURE MONITOR APP NOW:"
+echo "  • CPU-Z (free)"
+echo "  • DevCheck (free)"
+echo "  • AIDA64 (free)"
+echo ""
+echo "TEMPERATURE GUIDE:"
+echo "  35-42°C = SAFE (normal use)"
+echo "  43-47°C = WARM (reduce load)"
+echo "  48-52°C = HOT (stop immediately!)"
+echo "  53°C+   = DANGER (device damage!)"
+echo ""
+echo "TO RESTORE THERMAL PROTECTION:"
+echo "  Run: ./adb_restore_thermal.sh"
+echo "  Or restart your device"
+echo ""
+echo -e "${RED}USE AT YOUR OWN RISK!${NC}"
+echo "You are responsible for any damage!"
+echo "=========================================="

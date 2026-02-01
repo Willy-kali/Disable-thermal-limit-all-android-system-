@@ -1,0 +1,144 @@
+#!/system/bin/sh
+# Thermal Throttling Disabler - Non-Root Version
+# Disables thermal management and CPU/GPU throttling
+# WARNING: May cause device overheating - use at your own risk!
+
+echo "=========================================="
+echo "THERMAL THROTTLING DISABLER"
+echo "WARNING: This may cause overheating!"
+echo "=========================================="
+echo ""
+echo "Starting in 5 seconds... Press Ctrl+C to cancel"
+sleep 5
+
+# Function to safely execute commands with error handling
+safe_exec() {
+    local cmd="$1"
+    local desc="$2"
+    
+    if eval "$cmd" 2>/dev/null; then
+        echo "✓ $desc"
+        return 0
+    else
+        echo "✗ $desc (failed - may need root/Shizuku)"
+        return 1
+    fi
+}
+
+echo ""
+echo "=========================================="
+echo "Step 1: Stopping Thermal Services"
+echo "=========================================="
+safe_exec "setprop debug.svc.thermal_manager stopped" "Thermal manager → STOPPED"
+safe_exec "setprop debug.svc.thermald stopped" "Thermald daemon → STOPPED"
+safe_exec "setprop debug.svc.thermalloadalgod stopped" "Thermal load algo → STOPPED"
+safe_exec "setprop vendor.thermal.manager stopped" "Vendor thermal → STOPPED"
+safe_exec "setprop init.svc.thermal-engine stopped" "Thermal engine → STOPPED"
+
+echo ""
+echo "=========================================="
+echo "Step 2: Disabling Throttling via Settings"
+echo "=========================================="
+safe_exec "settings put global power.throttling.disable 1" "Power throttling → DISABLED"
+safe_exec "settings put global thermal.gpu_thermal_throttle.disable 1" "GPU throttle → DISABLED"
+safe_exec "settings put global thermal.cpu_thermal_throttle.disable 1" "CPU throttle → DISABLED"
+
+echo ""
+echo "=========================================="
+echo "Step 3: Thermal Manager Settings"
+echo "=========================================="
+safe_exec "settings put global thermal.manager.enabled 0" "Thermal manager → DISABLED"
+safe_exec "settings put global thermal.throttle.disabled 1" "Thermal throttle → DISABLED"
+safe_exec "settings put global thermal_throttle 0" "Thermal throttle → OFF"
+safe_exec "settings put global thermal.enabled 0" "Thermal system → DISABLED"
+
+echo ""
+echo "=========================================="
+echo "Step 4: Device Config Thermal Settings"
+echo "=========================================="
+safe_exec "cmd device_config put hardware_properties_manager thermal_throttling_enabled false" "HW thermal throttle → FALSE"
+safe_exec "cmd device_config put hardware_properties_manager cpu_throttling_disabled true" "CPU throttle disabled → TRUE"
+safe_exec "cmd device_config put hardware_properties_manager gpu_throttling_disabled true" "GPU throttle disabled → TRUE"
+safe_exec "cmd device_config put hardware_properties_manager thermal_manager_enabled false" "Thermal manager → FALSE"
+
+echo ""
+echo "=========================================="
+echo "Step 5: System Properties Override"
+echo "=========================================="
+safe_exec "setprop persist.vendor.disable.thermal.control 1" "Vendor thermal control → DISABLED"
+safe_exec "setprop persist.sys.thermal.disable 1" "System thermal → DISABLED"
+safe_exec "setprop ro.thermal.control false" "Thermal control → FALSE"
+safe_exec "setprop vendor.thermal.config disable" "Thermal config → DISABLE"
+
+echo ""
+echo "=========================================="
+echo "Step 6: Additional Thermal Overrides"
+echo "=========================================="
+safe_exec "settings put global power_throttle_enabled 0" "Power throttle → DISABLED"
+safe_exec "settings put system thermal_limit_disabled 1" "Thermal limit → DISABLED"
+safe_exec "settings put secure thermal_control_enabled 0" "Secure thermal → DISABLED"
+
+echo ""
+echo "=========================================="
+echo "Step 7: Performance Mode Settings"
+echo "=========================================="
+safe_exec "settings put global enhanced_processing 1" "Enhanced processing → ENABLED"
+safe_exec "settings put global peak_refresh_rate 120" "Peak refresh rate → 120Hz"
+safe_exec "settings put system screen_off_timeout 600000" "Screen timeout → 10min"
+safe_exec "cmd power set-mode 1" "Power mode → PERFORMANCE"
+
+echo ""
+echo "=========================================="
+echo "Step 8: CPU/GPU Governor Override"
+echo "=========================================="
+safe_exec "setprop sys.perf.profile 2" "Performance profile → MAX"
+safe_exec "setprop vendor.perf.mode 2" "Vendor perf mode → MAX"
+safe_exec "cmd device_config put game_overlay gpu_mode_override 3" "GPU mode → MAXIMUM"
+
+echo ""
+echo "=========================================="
+echo "VERIFICATION:"
+echo "=========================================="
+echo ""
+
+# Function to check setting value
+check_setting() {
+    local type=$1
+    local key=$2
+    local value=$(eval "$type get $key" 2>/dev/null)
+    
+    if [ -n "$value" ] && [ "$value" != "null" ]; then
+        echo "$key = $value"
+    fi
+}
+
+echo "Current Thermal Settings:"
+check_setting "settings global" "thermal.manager.enabled"
+check_setting "settings global" "thermal.throttle.disabled"
+check_setting "settings global" "power.throttling.disable"
+
+echo ""
+check_setting "getprop" "debug.svc.thermal_manager"
+check_setting "getprop" "persist.sys.thermal.disable"
+
+echo ""
+echo "=========================================="
+echo "⚠️  CRITICAL WARNINGS ⚠️"
+echo "=========================================="
+echo ""
+echo "1. Monitor device temperature closely!"
+echo "2. Device may overheat during heavy use"
+echo "3. Battery life may decrease significantly"
+echo "4. May void warranty on some devices"
+echo "5. Hardware damage possible if overheated"
+echo ""
+echo "RECOMMENDED SAFETY MEASURES:"
+echo "- Install CPU/GPU temperature monitor app"
+echo "- Don't use during charging"
+echo "- Take breaks during gaming/heavy tasks"
+echo "- Stop if device gets very hot (>45°C)"
+echo "- Keep device in well-ventilated area"
+echo ""
+echo "TO REVERT: Run the restore script or"
+echo "restart your device (most settings reset)"
+echo "=========================================="

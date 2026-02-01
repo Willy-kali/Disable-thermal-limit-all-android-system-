@@ -1,0 +1,145 @@
+#!/data/data/com.termux/files/usr/bin/sh
+# Thermal Throttling Disabler for Termux
+# Run directly on device without PC/ADB
+# Requires Shizuku for best results
+
+echo "=========================================="
+echo "THERMAL DISABLER (Termux Version)"
+echo "=========================================="
+echo ""
+
+# Check if running in Termux
+if [ ! -d "/data/data/com.termux" ]; then
+    echo "⚠️  WARNING: Not in Termux environment"
+    echo "Some commands may fail"
+    echo ""
+fi
+
+# Check for Shizuku
+if ! command -v sh >/dev/null 2>&1; then
+    echo "💡 TIP: Install Shizuku for better results"
+    echo "   Play Store → Shizuku → Enable → Grant Termux"
+    echo ""
+fi
+
+echo "⚠️  DANGER: This will disable thermal protection!"
+echo "Your device may overheat and get damaged!"
+echo ""
+read -p "Type 'YES' to continue: " confirm
+
+if [ "$confirm" != "YES" ]; then
+    echo "Cancelled. Your device is safe."
+    exit 0
+fi
+
+echo ""
+echo "Starting in 3 seconds..."
+sleep 3
+
+# Execute function with error tracking
+exec_cmd() {
+    local cmd="$1"
+    local desc="$2"
+    local success=0
+    local failed=0
+    
+    if eval "$cmd" 2>/dev/null; then
+        echo "✓ $desc"
+        success=$((success + 1))
+    else
+        echo "✗ $desc"
+        failed=$((failed + 1))
+    fi
+}
+
+echo ""
+echo "[1/8] Stopping thermal services..."
+exec_cmd "setprop debug.svc.thermal_manager stopped" "Thermal manager"
+exec_cmd "setprop debug.svc.thermald stopped" "Thermald"
+exec_cmd "setprop debug.svc.thermalloadalgod stopped" "Thermal algo"
+exec_cmd "setprop vendor.thermal.manager stopped" "Vendor thermal"
+exec_cmd "setprop init.svc.thermal-engine stopped" "Thermal engine"
+
+echo ""
+echo "[2/8] Disabling throttling..."
+exec_cmd "settings put global power.throttling.disable 1" "Power throttle"
+exec_cmd "settings put global thermal.gpu_thermal_throttle.disable 1" "GPU throttle"
+exec_cmd "settings put global thermal.cpu_thermal_throttle.disable 1" "CPU throttle"
+
+echo ""
+echo "[3/8] Thermal manager..."
+exec_cmd "settings put global thermal.manager.enabled 0" "Manager"
+exec_cmd "settings put global thermal.throttle.disabled 1" "Throttle"
+exec_cmd "settings put global thermal_throttle 0" "Throttle flag"
+
+echo ""
+echo "[4/8] Device config..."
+exec_cmd "cmd device_config put hardware_properties_manager thermal_throttling_enabled false" "HW throttle"
+exec_cmd "cmd device_config put hardware_properties_manager cpu_throttling_disabled true" "CPU disable"
+exec_cmd "cmd device_config put hardware_properties_manager gpu_throttling_disabled true" "GPU disable"
+
+echo ""
+echo "[5/8] System properties..."
+exec_cmd "setprop persist.vendor.disable.thermal.control 1" "Vendor control"
+exec_cmd "setprop persist.sys.thermal.disable 1" "Sys thermal"
+exec_cmd "setprop ro.thermal.control false" "Thermal control"
+
+echo ""
+echo "[6/8] Additional overrides..."
+exec_cmd "settings put global power_throttle_enabled 0" "Power throttle"
+exec_cmd "settings put system thermal_limit_disabled 1" "Thermal limit"
+exec_cmd "settings put secure thermal_control_enabled 0" "Secure thermal"
+
+echo ""
+echo "[7/8] Performance mode..."
+exec_cmd "settings put global enhanced_processing 1" "Enhanced processing"
+exec_cmd "cmd power set-mode 1" "Performance mode"
+exec_cmd "setprop sys.perf.profile 2" "Max performance"
+
+echo ""
+echo "[8/8] GPU/CPU max..."
+exec_cmd "setprop vendor.perf.mode 2" "Vendor perf"
+exec_cmd "cmd device_config put game_overlay gpu_mode_override 3" "GPU max"
+
+echo ""
+echo "=========================================="
+echo "STATUS CHECK:"
+echo "=========================================="
+
+# Check if settings were applied
+thermal_disabled=$(settings get global thermal.manager.enabled 2>/dev/null)
+throttle_disabled=$(settings get global thermal.throttle.disabled 2>/dev/null)
+
+if [ "$thermal_disabled" = "0" ] || [ "$throttle_disabled" = "1" ]; then
+    echo "✓ Thermal throttling appears DISABLED"
+else
+    echo "⚠️  Settings may not have applied fully"
+    echo "   Try with Shizuku or root access"
+fi
+
+echo ""
+echo "=========================================="
+echo "⚠️  SAFETY WARNINGS ⚠️"
+echo "=========================================="
+echo ""
+echo "Your thermal protection is now DISABLED!"
+echo ""
+echo "MONITOR TEMPERATURE:"
+echo "  Download: CPU-Z, DevCheck, or AIDA64"
+echo "  Safe range: 35-42°C"
+echo "  WARNING: 43-48°C"
+echo "  DANGER: 49°C+"
+echo ""
+echo "IF DEVICE GETS HOT:"
+echo "  1. STOP what you're doing immediately"
+echo "  2. Close all apps"
+echo "  3. Let device cool down"
+echo "  4. Run: sh restore_thermal.sh"
+echo ""
+echo "TO REVERT:"
+echo "  sh restore_thermal.sh"
+echo "  or just restart your device"
+echo ""
+echo "USE AT YOUR OWN RISK!"
+echo "Hardware damage is YOUR responsibility!"
+echo "=========================================="
